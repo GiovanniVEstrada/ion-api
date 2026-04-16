@@ -1,74 +1,61 @@
 const Task = require("../models/Task");
+const asyncHandler = require("../utils/asyncHandler");
+const paginate = require("../utils/paginate");
 
-const getTasks = async (req, res) => {
-  try {
-    const tasks = await Task.find().sort({ createdAt: -1 });
-    res.status(200).json(tasks);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to fetch tasks" });
+const getTasks = asyncHandler(async (req, res) => {
+  const filter = {};
+
+  if (req.query.completed !== undefined) {
+    filter.completed = req.query.completed === "true";
   }
-};
-
-const createTask = async (req, res) => {
-  try {
-    const { title, priority, category, dueDate } = req.body || {};
-
-    if (!title) {
-      return res.status(400).json({ message: "Title is required" });
-    }
-
-    const task = await Task.create({
-      title,
-      priority,
-      category,
-      dueDate,
-    });
-
-    res.status(201).json(task);
-  } catch (error) {
-    res.status(500).json({
-      message: "Failed to create task",
-      error: error.message,
-    });
+  if (req.query.priority) {
+    filter.priority = req.query.priority;
   }
-};
 
-const updateTask = async (req, res) => {
-  try {
-    const updatedTask = await Task.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+  const sortField = req.query.sort || "-createdAt";
+  const { skip, limit, buildResponse } = paginate(req.query);
 
-    if (!updatedTask) {
-      return res.status(404).json({ message: "Task not found" });
-    }
+  const [tasks, total] = await Promise.all([
+    Task.find(filter).sort(sortField).skip(skip).limit(limit),
+    Task.countDocuments(filter),
+  ]);
 
-    res.status(200).json(updatedTask);
-  } catch (error) {
-    res.status(500).json({
-      message: "Failed to update task",
-      error: error.message,
-    });
+  res.status(200).json(buildResponse(tasks, total));
+});
+
+const createTask = asyncHandler(async (req, res) => {
+  const { title, priority, category, dueDate } = req.body || {};
+
+  if (!title) {
+    return res.status(400).json({ message: "Title is required" });
   }
-};
 
-const deleteTask = async (req, res) => {
-  try {
-    const deletedTask = await Task.findByIdAndDelete(req.params.id);
+  const task = await Task.create({ title, priority, category, dueDate });
+  res.status(201).json(task);
+});
 
-    if (!deletedTask) {
-      return res.status(404).json({ message: "Task not found" });
-    }
+const updateTask = asyncHandler(async (req, res) => {
+  const updatedTask = await Task.findByIdAndUpdate(req.params.id, req.body, {
+    new: true,
+    runValidators: true,
+  });
 
-    res.status(200).json({ message: "Task deleted successfully" });
-  } catch (error) {
-    res.status(500).json({
-      message: "Failed to delete task",
-      error: error.message,
-    });
+  if (!updatedTask) {
+    return res.status(404).json({ message: "Task not found" });
   }
-};
+
+  res.status(200).json(updatedTask);
+});
+
+const deleteTask = asyncHandler(async (req, res) => {
+  const deletedTask = await Task.findByIdAndDelete(req.params.id);
+
+  if (!deletedTask) {
+    return res.status(404).json({ message: "Task not found" });
+  }
+
+  res.status(200).json({ message: "Task deleted successfully" });
+});
 
 module.exports = {
   getTasks,
